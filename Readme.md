@@ -3,7 +3,7 @@ StocPy
 
 StocPy is an expressive [probabilistic programming language](http://probabilistic-programming.org) written in Python. The language follows the "lightweight implementations" style introduced by Wingate, Stuhlmüller and Goodman ([link to pdf](http://www.mit.edu/~ast/papers/lightweight-mcmc-aistats2011.pdf)).
 
-StocPy was developed as part of my masters thesis ([Improving Inference Performance in Probabilistic Programming Languages](http://www.cl.cam.ac.uk/~rr463/PPL_Thesis.pdf)), under the supervision of [Dan Roy](http://danroy.org/) and [Zoubin Ghahramani](http://mlg.eng.cam.ac.uk/zoubin/). 
+StocPy was developed as part of my [masters thesis](http://www.cl.cam.ac.uk/~rr463/PPL_Thesis.pdf)), under the supervision of [Dan Roy](http://danroy.org/) and [Zoubin Ghahramani](http://mlg.eng.cam.ac.uk/zoubin/). 
 
 Please send any questions/suggestions/issues to [Razvan Ranca](http://www.cl.cam.ac.uk/~rr463/) - ranca.razvan@gmail.com
 
