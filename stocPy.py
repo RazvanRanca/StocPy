@@ -18,8 +18,8 @@ ll = 0
 llFresh = 0
 llStale = 0
 db = {}
-erps = {"unifCont":0, "studentT":1, "poisson":2, "normal":3, "invGamma":4}
-dists = [ss.uniform, ss.t, ss.poisson, ss.norm, ss.invgamma]
+erps = {"unifCont":0, "studentT":1, "poisson":2, "normal":3, "invGamma":4, "beta":5}
+dists = [ss.uniform, ss.t, ss.poisson, ss.norm, ss.invgamma, ss.beta]
 observ = set()
 condition = set()
 cols = ['b','r','k','m','c','g']
@@ -43,6 +43,62 @@ def normal(mean, stDev, cond = None, obs=False, name = None):
 def invGamma(shape, scale, cond = None, obs=False, name = None):
   initERP(name, obs)
   return getERP(name, cond, erps["invGamma"], (shape, 0, scale))
+
+def beta(a, b, cond = None, obs=False, name = None):
+  initERP(name, obs)
+  return getERP(name, cond, erps["beta"], (a, b))
+
+def stocPrim(distName, params, cond = None, obs=False, name = None):
+  if distName not in erps:
+    erps[distName] = len(erps)
+    dists.append(getattr(ss, "norm"))
+  initERP(name, obs)
+  return getERP(name, cond, erps[distName], params)
+
+def initERP(name, obs):
+  assert(name)
+  global observ
+  global curNames
+  curNames.add(name)
+  if obs:
+    observ.add(name)
+
+def getERP(n, c, tp, ps):
+  global ll
+  global llFresh
+  global db
+  global condition
+  otp, ox, ol, ops = db.get(n, (None,None,None,None))
+  if tp == otp:
+    if ps == ops:
+      ll += ol
+      return ox
+    else:
+      try:
+        l = dists[tp].logpdf(ox, *ps)
+      except:
+        l = dists[tp].logpmf(ox, *ps)
+
+      db[n] = (tp, ox, l, ps)
+      ll += l
+      return ox
+  else:
+    if c:
+      x = c
+      condition.add(n)
+    else:
+      assert (not n in condition)
+      x = dists[tp].rvs(*ps)
+    try:
+      l = dists[tp].logpdf(x, *ps)
+    except:
+      l = dists[tp].logpmf(x, *ps)
+
+    db[n] = (tp, x, l, ps)
+    ll += l
+    if not c:
+      llFresh += l
+    return x
 
 debugOn = False
 def debugPrint(override, *mess):
@@ -105,7 +161,7 @@ class RewriteModel(ast.NodeTransformer):
 
   def visit_Call(self, node):
     callType = dict(ast.iter_fields(dict(ast.iter_fields(node))['func'])).get('attr',None)
-    if callType in erps.keys():
+    if callType in erps.keys() or callType == "stocPrim":
       dict(ast.iter_fields(node))['keywords'].append(ast.keyword(arg='name', value=ast.BinOp(left=ast.Str(s=self.funcName + "-" + str(node.lineno) + "-"), op=ast.Add(), right=ast.Call(func=ast.Name(id='str', ctx=ast.Load()), args=[ast.Name(id=self.tempName, ctx=ast.Load())], keywords=[], starargs=None, kwargs=None))))
       ast.fix_missing_locations(node)
       #print map(ast.dump, dict(ast.iter_fields(node))['keywords'])
@@ -526,51 +582,6 @@ def getName(loopInd):
   _, _, lineNo, funcName, _, _ = inspect.stack()[2]
   name = funcName + "-" + str(lineNo) + "-" + str(loopInd)
   return name
-
-def getERP(n, c, tp, ps):
-  global ll
-  global llFresh
-  global db
-  global condition
-  otp, ox, ol, ops = db.get(n, (None,None,None,None))
-  if tp == otp:
-    if ps == ops:
-      ll += ol
-      return ox
-    else:
-      try:
-        l = dists[tp].logpdf(ox, *ps)
-      except:
-        l = dists[tp].logpmf(ox, *ps)
-
-      db[n] = (tp, ox, l, ps)
-      ll += l
-      return ox
-  else:
-    if c:
-      x = c
-      condition.add(n)
-    else:
-      assert (not n in condition)
-      x = dists[tp].rvs(*ps)
-    try:
-      l = dists[tp].logpdf(x, *ps)
-    except:
-      l = dists[tp].logpmf(x, *ps)
-
-    db[n] = (tp, x, l, ps)
-    ll += l
-    if not c:
-      llFresh += l
-    return x
-
-def initERP(name, obs):
-  assert(name)
-  global observ
-  global curNames
-  curNames.add(name)
-  if obs:
-    observ.add(name)
 
 def readSamps(fn, start=0):
   with open(fn, 'r') as f:

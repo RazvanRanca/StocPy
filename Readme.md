@@ -3,7 +3,11 @@ StocPy
 
 StocPy is an expressive [probabilistic programming language](http://probabilistic-programming.org) written in Python. The language follows the "lightweight implementations" style introduced by Wingate, Stuhlmüller and Goodman ([link to pdf](http://www.mit.edu/~ast/papers/lightweight-mcmc-aistats2011.pdf)).
 
-**Warning**: This is alpha-quality software. Expect bugs.
+StocPy was developed as part of my masters thesis ([Improving Inference Performance in Probabilistic Programming Languages](http://www.cl.cam.ac.uk/~rr463/PPL_Thesis.pdf)), under the supervision of [Dan Roy](http://danroy.org/) and [Zoubin Ghahramani](http://mlg.eng.cam.ac.uk/zoubin/). 
+
+Please send any questions/suggestions/issues to [Razvan Ranca](http://www.cl.cam.ac.uk/~rr463/) - ranca.razvan@gmail.com
+
+**Warning**: This is alpha-quality software. Expect bugs. 
 
 Features
 ---
@@ -31,7 +35,39 @@ Finally, several utility functions are provided. For instance, to quickly visual
 
     stocPy.plotSamples(samples)
 
-For more usage examples (including more advanced cases), please see the sample models.
+### Less Basic Usage
+For more usage examples (including more advanced cases), please see the models directory. Each model is explained in its respective ".py" file.
+
+Stochastic primitives
+---
+In order for StocPy to be able to perform inference on a python model, the model must define its stochastic primitives via StocPy functions, so that the library can keep track of them througout the model execution.
+
+At the moment StocPy defines the following stochastic primitives:
+
+* Normal - `stocPy.normal(mean, stDev)`
+* Poisson - `stocPy.poisson(shape)`
+* Uniform Continuous - `stocPy.unifCont(start, end)`
+* Student T - `stocPy.studentT(dof)`
+* Inverse Gamma - `stocPy.invGamma(shape, scale)`
+* Beta - `stocPy.beta(a, b)`
+
+### Using any scipy.stats primitive
+A generic `stocPrim` function is also provided through which any stochastic primitive implemented in [scipy.stats](http://docs.scipy.org/doc/scipy/reference/stats.html#continuous-distributions) can be used in StocPy models.
+
+The usage of the stocPrim is demonstrated in the "simplePoisson" model, but in short it is:
+
+    stocPy.stocPrim(distributionName, distributionParameters)
+
+Here `distributionName` is a string with the exact name of the primitive in scipy.stats (eg: "beta"), and `distributionParameters` is a tuple holding an arbitrary number of parameters as taken by the scipy.stats `rvs` function corresponding to our distribution.
+
+**Note**: When using the `stocPrim` function the parameters must be given in the same order as that defined by the corresponding scipy.stats `rvs` function. A tuple must be given even if there is a single parameter (i.e use `(parameter, )`).
+
+### Adding new primitives to StocPy
+It might be convenient to add more commonly used primitives directly to StocPy rather than using the generic `stocPrim` function. This is easily done by performing the following changes in stocPy.py.
+
+* Add the desired distribution to the `dists` array
+* Add a (key:value) pair consisting of (distribution name : distribution index in `dists` array) to the `erps` dictionary
+* Create a 3 line wrapper function which gets the distribution parameters from the user, calls `initERP` and then returns `getERP`. See the wrappers provided in stocPy (normal, poisson, etc.) to understand the pattern this wrapper follows.
 
 Installation
 ---
@@ -43,6 +79,4 @@ This repository is intended to hold a version of StocPy that is relatively easy 
 
 Contact
 ---
-Please send any questions/suggestions/issues to:
-
-Razvan Ranca - ranca.razvan@gmail.com
+Please send any questions/suggestions/issues to [Razvan Ranca](http://www.cl.cam.ac.uk/~rr463/) - ranca.razvan@gmail.com
