@@ -3,7 +3,7 @@ StocPy
 
 StocPy is an expressive [probabilistic programming language](http://probabilistic-programming.org) written in Python. The language follows the "lightweight implementations" style introduced by Wingate, Stuhlmüller and Goodman ([link to pdf](http://www.mit.edu/~ast/papers/lightweight-mcmc-aistats2011.pdf)).
 
-StocPy was developed as part of my [masters thesis](http://www.cl.cam.ac.uk/~rr463/PPL_Thesis.pdf)), under the supervision of [Dan Roy](http://danroy.org/) and [Zoubin Ghahramani](http://mlg.eng.cam.ac.uk/zoubin/). 
+StocPy was developed as part of my [masters thesis](http://www.cl.cam.ac.uk/~rr463/PPL_Thesis.pdf), under the supervision of [Dan Roy](http://danroy.org/) and [Zoubin Ghahramani](http://mlg.eng.cam.ac.uk/zoubin/). 
 
 Please send any questions/suggestions/issues to [Razvan Ranca](http://www.cl.cam.ac.uk/~rr463/) - ranca.razvan@gmail.com
 
@@ -13,8 +13,8 @@ Features
 ---
 
 * Intuitive, succinct and flexible model specification , thanks to Python
-* Easily extensible. Simple to add handling of different probability distributions
-* Modular inference engine architecture allowing for the implementation of different inference techniques. Currently Metropolis, Slice Sampling and combinations of the two are supported (note, slice sampling is still work in progress and may not work correctly on all models)
+* Can use any probabilistic primitive defined by [scipy.stats](http://docs.scipy.org/doc/scipy/reference/stats.html#continuous-distributions)
+* Allows for fast prototyping of different inference methods. Currently Metropolis, Slice Sampling and weighted combinations of the two are supported (note, non-combined slice sampling is still work in progress and may not work correctly on all models)
 
 Basic Usage
 ---
