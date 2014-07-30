@@ -35,12 +35,26 @@ Finally, several utility functions are provided. For instance, to quickly visual
 
     stocPy.plotSamples(samples)
 
+### Inference API
+There are 3 methods available for performing inference. These are:
+
+* `stocPy.getSamples(model, noSamps)` - Generate a certain number of samples
+* `stocPy.getTimesSamples(model, noSecs)` - Generate samples until a certain number of seconds have ellapsed 
+* `stocPy.getSamplesByLL(model, noLLs)` - Generate samples until a certain number of model simulations have been run. This is useful when benchmarking different inference techniques which may simulate the model multiple times to generate a single sample. 
+
+All 3 of these functions take, via the optional `alg` keyword, the method by which to perform inference. The available methods are:
+
+* `alg="met"` - Metropolis from the prior. The default option.
+* `alg="slice"` - Slice sampling based inference (currently doesn't work correctly on trans-dimensional models).
+* `alg="sliceNoTrans"` - Slice which explicitly disallows trans-dimensional jumps.
+* `alg="sliceMet"` - A mixture of slice and Metropolis. The mixture weight can be specified by the `thresh` parameter. By default this is 0.1, corresponding to a Metropolis:Slice 1:9 mixture.
+
 ### Less Basic Usage
 For more usage examples (including more advanced cases), please see the models directory. Each model is explained in its respective ".py" file.
 
 Stochastic primitives
 ---
-In order for StocPy to be able to perform inference on a python model, the model must define its stochastic primitives via StocPy functions, so that the library can keep track of them througout the model execution.
+In order for StocPy to be able to perform inference on a python model, the model must define its stochastic primitives via StocPy functions, so that the library can keep track of them throughout the model execution.
 
 At the moment StocPy defines the following stochastic primitives:
 
