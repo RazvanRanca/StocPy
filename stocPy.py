@@ -51,7 +51,7 @@ def beta(a, b, cond = None, obs=False, name = None):
 def stocPrim(distName, params, cond = None, obs=False, name = None):
   if distName not in erps:
     erps[distName] = len(erps)
-    dists.append(getattr(ss, "norm"))
+    dists.append(getattr(ss, distName))
   initERP(name, obs)
   return getERP(name, cond, erps[distName], params)
 
@@ -660,6 +660,7 @@ def calcKSTest(pfn, fns, names = None):
     fn = fns[i]
     diffs[fn] = []
     xs, ys =  plotCumSampDist(fn, plot=False)
+    
     minX = min(xs)
     maxX = max(xs)
     f = interpolate.interp1d(xs,ys)
