@@ -23,6 +23,8 @@ dists = [ss.uniform, ss.t, ss.poisson, ss.norm, ss.invgamma, ss.beta]
 observ = set()
 condition = set()
 cols = ['b','r','k','m','c','g']
+partName = {}
+partFunc = {}
 
 def unifCont(start, end, cond = None, obs=False, name = None):
   initERP(name, obs)
@@ -48,12 +50,29 @@ def beta(a, b, cond = None, obs=False, name = None):
   initERP(name, obs)
   return getERP(name, cond, erps["beta"], (a, b))
 
-def stocPrim(distName, params, cond = None, obs=False, name = None):
-  if distName not in erps:
-    erps[distName] = len(erps)
-    dists.append(getattr(ss, distName))
-  initERP(name, obs)
-  return getERP(name, cond, erps[distName], params)
+def stocPrim(distName, params, cond=None, obs=False, name=None, part=None):
+  if part:
+    global partName
+    global partFunc
+    depth = part
+    ns = []
+    for i in range(1, depth+1):
+      #print i
+      pName = name + "-" + str(i)
+      ns.append(normal(0, math.sqrt(1.0/(2.0**i)), obs=obs, name = pName))
+      partName[pName] = name
+    pName = name + "-" + str(i) + "-r"
+    ns.append(normal(0, math.sqrt(1.0/(2.0**depth)), obs=obs, name = pName))
+    partName[pName] = name
+    dist = getattr(ss, distName)
+    partFunc[name] = lambda xs: dist.ppf(ss.norm.cdf(sum(xs)), *params)
+    return dist.ppf(ss.norm.cdf(sum(ns)), *params)
+  else:
+    if distName not in erps:
+      erps[distName] = len(erps)
+      dists.append(getattr(ss, distName))
+    initERP(name, obs)
+    return getERP(name, cond, erps[distName], params)
 
 def initERP(name, obs):
   assert(name)
@@ -133,9 +152,23 @@ class RewriteModel(ast.NodeTransformer):
       tempName = "loopCount" + str(count)
       count += 1
     self.tempName = tempName
+    self.seen = set()
+
+  def generic_visit(self, node):
+    for child in ast.iter_child_nodes(node):
+      self.visit(child, node)
+
+  def visit(self, node, parent):
+    funcName = "visit_" + node.__class__.__name__
+    try:
+      custVisit = getattr(self, funcName)
+      custVisit(node, parent)
+    except:
+      self.generic_visit(node)
 
   def addChild(self, child, parent, loc=0):
-    map(ast.increment_lineno, dict(ast.iter_fields(parent))['body'])
+    #print child, parent, loc
+    map(ast.increment_lineno, dict(ast.iter_fields(parent))['body'][loc:])
     dict(ast.iter_fields(parent))['body'].insert(loc, child)
     ast.fix_missing_locations(parent)
     ast.increment_lineno(child)
@@ -143,26 +176,40 @@ class RewriteModel(ast.NodeTransformer):
     #print map(lambda x:x.lineno, dict(ast.iter_fields(parent))['body'])
     #print ast.dump(dict(ast.iter_fields(parent))['body'][0], include_attributes=True)
 
-  def visit_FunctionDef(self, node):
-    self.addChild(ast.Assign(targets=[ast.Name(id=self.tempName, ctx=ast.Store())], value=ast.Num(n=0)), node)
+  def visit_FunctionDef(self, node, parent):
+    self.addChild(ast.Assign(targets=[ast.Name(id=self.tempName, ctx=ast.Store())], value=ast.List(elts=[ast.Num(n=0)], ctx=ast.Load())), node)
     self.funcName = dict(ast.iter_fields(node))['name']
     self.generic_visit(node)
     return node
 
-  def visit_For(self, node):
-    self.addChild(ast.AugAssign(target=ast.Name(id=self.tempName, ctx=ast.Store()), op=ast.Add(), value=ast.Num(n=1)), node)
+  def visit_For(self, node, parent):
+    if node in self.seen:
+      return node
+    self.seen.add(node)
+
+    self.addChild(ast.Expr(value=ast.Call(func=ast.Attribute(value=ast.Name(id=self.tempName, ctx=ast.Load()), attr='append', ctx=ast.Load()), args=[ast.Num(n=0)], keywords=[], starargs=None, kwargs=None)), parent, dict(ast.iter_fields(parent))['body'].index(node))
+    self.addChild(ast.AugAssign(target=ast.Subscript(value=ast.Name(id=self.tempName, ctx=ast.Load()), slice=ast.Index(value=ast.Num(n=-1)), ctx=ast.Store()), op=ast.Add(), value=ast.Num(n=1)), node)
+    self.addChild(ast.Expr(value=ast.Call(func=ast.Attribute(value=ast.Name(id=self.tempName, ctx=ast.Load()), attr='pop', ctx=ast.Load()), args=[], keywords=[], starargs=None, kwargs=None)), parent, dict(ast.iter_fields(parent))['body'].index(node) + 1)
+
     self.generic_visit(node)
     return node
 
-  def visit_While(self, node):
-    self.addChild(ast.AugAssign(target=ast.Name(id=self.tempName, ctx=ast.Store()), op=ast.Add(), value=ast.Num(n=1)), node)
+  def visit_While(self, node, parent):
+    if node in seen:
+      return node
+    seen.add(node)
+
+    self.addChild(ast.Expr(value=ast.Call(func=ast.Attribute(value=ast.Name(id=self.tempName, ctx=ast.Load()), attr='append', ctx=ast.Load()), args=[ast.Num(n=0)], keywords=[], starargs=None, kwargs=None)), parent, dict(ast.iter_fields(parent))['body'].index(node))
+    self.addChild(ast.AugAssign(target=ast.Subscript(value=ast.Name(id=self.tempName, ctx=ast.Load()), slice=ast.Index(value=ast.Num(n=-1)), ctx=ast.Store()), op=ast.Add(), value=ast.Num(n=1)), node)
+    self.addChild(ast.Expr(value=ast.Call(func=ast.Attribute(value=ast.Name(id=self.tempName, ctx=ast.Load()), attr='pop', ctx=ast.Load()), args=[], keywords=[], starargs=None, kwargs=None)), parent, dict(ast.iter_fields(parent))['body'].index(node) + 1)
+
     self.generic_visit(node)
     return node
 
-  def visit_Call(self, node):
+  def visit_Call(self, node, parent):
     callType = dict(ast.iter_fields(dict(ast.iter_fields(node))['func'])).get('attr',None)
     if callType in erps.keys() or callType == "stocPrim":
-      dict(ast.iter_fields(node))['keywords'].append(ast.keyword(arg='name', value=ast.BinOp(left=ast.Str(s=self.funcName + "-" + str(node.lineno) + "-"), op=ast.Add(), right=ast.Call(func=ast.Name(id='str', ctx=ast.Load()), args=[ast.Name(id=self.tempName, ctx=ast.Load())], keywords=[], starargs=None, kwargs=None))))
+      dict(ast.iter_fields(node))['keywords'].append(ast.keyword(arg='name', value=ast.BinOp(left=ast.Str(s=self.funcName + "-" + str(node.lineno) + "-"), op=ast.Add(), right=ast.Call(func=ast.Name(id='str', ctx=ast.Load()), args=[ast.Subscript(value=ast.Name(id=self.tempName, ctx=ast.Load()), slice=ast.Index(value=ast.Num(n=-1)), ctx=ast.Load())], keywords=[], starargs=None, kwargs=None))))
       ast.fix_missing_locations(node)
       #print map(ast.dump, dict(ast.iter_fields(node))['keywords'])
     self.generic_visit(node)
@@ -185,7 +232,9 @@ def procRawModel(model):
   #print ast.dump(tree)
   oldGbs = inspect.stack()[2][0].f_globals
   
-  RewriteModel(gln.localNames.union(set(oldGbs.keys()))).visit(tree)
+  RewriteModel(gln.localNames.union(set(oldGbs.keys()))).visit(tree, None)
+  #print "\n\n", ast.dump(tree)
+  #assert(False)  
   exec compile(tree, inspect.getfile(model), 'exec') in oldGbs, lcs
   assert(len(lcs) == 1)
   return lcs.values()[0]
@@ -221,43 +270,43 @@ def getSamplesByLL(model, noLLs, discAll=False, alg="met", thresh=0.1):
   initModel(model)
 
   totLLs = 0
-  sampleDic = {}
+  sampleDict = {}
   if alg == "met":
     while totLLs < noLLs:
       samp = metropolisSampleTrace(model, no = totLLs, discAll = discAll)
       totLLs += 1
       if totLLs < noLLs:
-        sampleDic[totLLs] = samp
+        sampleDict[totLLs] = samp
   elif alg == "slice":
     while totLLs < noLLs:
       llCount, samp = sliceSampleTrace(model, no = totLLs, discAll = discAll, countLLs = True)
       totLLs += llCount
       if totLLs < noLLs:
-        sampleDic[totLLs] = samp
+        sampleDict[totLLs] = samp
   elif alg == "sliceTD":
     while totLLs < noLLs:
       llCount, samp = sliceSampleTrace(model, no = totLLs, discAll = discAll, countLLs = True, tdCorr=True)
       totLLs += llCount
       if totLLs < noLLs:
-        sampleDic[totLLs] = samp
+        sampleDict[totLLs] = samp
   elif alg == "sliceNoTrans":
     while totLLs < noLLs:
       llCount, samp = sliceSampleTrace(model, no = totLLs, discAll = discAll, allowTransJumps = False, countLLs = True)
       totLLs += llCount
       if totLLs < noLLs:
-        sampleDic[totLLs] = samp
+        sampleDict[totLLs] = samp
   elif alg == "sliceMet":
     while totLLs < noLLs:
       llCount, samp = sliceMetMixSampleTrace(model, no = totLLs, discAll = discAll, countLLs = True, thresh = thresh)
       totLLs += llCount
       if totLLs < noLLs:
-        sampleDic[totLLs] = samp
+        sampleDict[totLLs] = samp
   else:
     raise Exception("Unknown inference algorithm: " + str(alg))
 
   resetAll()
   print "rejectedTransJumps", rejTransJumps
-  return aggSamples(sampleDic)
+  return aggSamples(sampleDict)
 
 def getTimedSamples(model, maxTime, discAll = False, alg = "met", thresh = 0.1):
   model = procRawModel(model)
@@ -284,21 +333,25 @@ def getTimedSamples(model, maxTime, discAll = False, alg = "met", thresh = 0.1):
 
 def aggSamples(samples):
   aggSamps = {}
-  if isinstance(samples, list):
-    for sample in samples:
-      for k,v in sample.items():
-        try:
-          aggSamps[k].append(v)
-        except:
-          aggSamps[k] = [v]
-  else:
-    for count, sample in samples.items():
-      for k,v in sample.items():
-        try:
-          aggSamps[k][count] = v
-        except:
-          aggSamps[k] = {count:v}
-
+  for count,vs in samples.items():
+    for k,v in vs.items():
+      if k in partName:
+	k = partName[k]
+      try:
+	aggSamps[k][count].append(v)
+      except:
+	try:
+	  aggSamps[k][count] = [v]
+	except:
+	  aggSamps[k] = {count:[v]}
+  for k,vs in aggSamps.items():
+    for count,v in vs.items():
+      if k in partFunc:
+        val = partFunc[k](v)
+        aggSamps[k][count] = val 
+      else:
+	assert(len(v)==1)
+	aggSamps[k][count] = v[0]
   return aggSamps
 
 def sliceMetMixSampleTrace(model, no = None, discAll = False, thresh = 0.1, countLLs = False):
@@ -316,6 +369,7 @@ def metropolisSampleTrace(model, no = None, discAll = False):
   global db
   global ll
   global tries
+  global observ
   unCond = list(set(db.keys()).difference(condition))
   n = random.choice(unCond)
   otp, ox, ol, ops = db[n]
@@ -328,6 +382,7 @@ def metropolisSampleTrace(model, no = None, discAll = False):
 
   odb = copy.copy(db)
   oll = ll
+  oobs = copy.copy(observ)
   recalcLL(model, n, x, l)
   
   changed = True
@@ -338,6 +393,7 @@ def metropolisSampleTrace(model, no = None, discAll = False):
     changed = False
     db = odb
     ll = oll
+    observ = oobs
 
   sample = {}
   for n in observ:
@@ -544,6 +600,7 @@ def recalcMultLL(model, xs, ls = None):
   global llStale
   global llFresh
   global curNames
+  global observ
 
   for n,x in xs.items():
     otp, ox, ol, ops = db[n]
@@ -567,6 +624,7 @@ def recalcMultLL(model, xs, ls = None):
   llStale = 0
   curNames = set()
   oldLen = len(db)
+  observ = set()
   model()
 
   newLen = len(db)
@@ -625,7 +683,7 @@ def plotCumSampDist(fn, plot=True, show=True, xlim = None):
       plt.show()
   return locs, cSamps
 
-def plotCumPost(fn = "posterior", plot = True, show=True, zipRez=True):
+def plotCumPost(fn = "posterior", plot = True, show=True, zipRez=True, xlim=None):
   with open(fn,'r') as f:
     ds, ls = cPickle.load(f)
   cls = []
@@ -633,6 +691,10 @@ def plotCumPost(fn = "posterior", plot = True, show=True, zipRez=True):
   for l in ls:
     curSum += l
     cls.append(curSum)
+
+  if xlim:
+    cls = [0] + cls + [1]
+    ds = [xlim[0]] + ds + [xlim[1]]
 
   if plot:
     plt.plot(ds, cls)
@@ -651,8 +713,8 @@ def plotCumSampDists(fns):
     plotCumSampDist(fn, show=False)
   plt.show()
 
-def calcKSTest(pfn, fns, names = None):
-  post = plotCumPost(pfn, plot=False)
+def calcKSTest(pfn, fns, names = None, postXlim=None):
+  post = plotCumPost(pfn, plot=False, xlim=postXlim)
   diffs = {}
   ps = []
   ns = []
@@ -692,6 +754,8 @@ def calcKSRun(postFun, run, aggFreq, burnIn):
   samps = []
   xs = []
   ys = []
+  if len(run) == 0:
+    return xs, ys
   curAgg = 0
   if isinstance(run, list):
     run = dict([(i+1, run[i]) for i in range(len(run))])
@@ -710,8 +774,8 @@ def calcKSRun(postFun, run, aggFreq, burnIn):
   ys.append(calcKSDiff(postFun, samps))
   return xs, ys
 
-def calcKSTests(pfn, fns, aggFreq, burnIn = 0, plot=True, xlim = 200000, names=None, alpha=0.25, single=False):
-  postFun = interpolate.interp1d(*plotCumPost(pfn, plot=False, zipRez=False))
+def calcKSTests(pfn, fns, aggFreq, burnIn = 0, plot=True, xlim = 200000, names=None, alpha=0.25, single=False, modelName=None, postXlim=None):
+  postFun = interpolate.interp1d(*plotCumPost(pfn, plot=False, zipRez=False, xlim=postXlim))
   ps = []
   ns = []
   np.append(aggFreq, float("inf"))
@@ -738,14 +802,16 @@ def calcKSTests(pfn, fns, aggFreq, burnIn = 0, plot=True, xlim = 200000, names=N
     plt.xlim([0, xlim])
     plt.xlabel("Trace Likelihood calculations", size=20)
     plt.ylabel("KS difference from posterior", size=20)
-    no = fns[0].split("PerLL")[0][-1]
-    if no == "4":
-      no = "3"
-    plt.title("Performance on NormalMean" + no + " Model", size=30)
+    if not modelName:
+      no = fns[0].split("PerLL")[0][-1]
+      if no == "4":
+        no = "3"
+      modelName = "NormalMean" + no
+    plt.title("Performance on " + modelName + " Model", size=30)
     plt.show()
 
-def calcKSSumms(pfn, fns, aggFreq, burnIn = 0, xlim = 200000, names=None):
-  postFun = interpolate.interp1d(*plotCumPost(pfn, plot=False, zipRez=False))
+def calcKSSumms(pfn, fns, aggFreq, burnIn = 0, xlim = 200000, names=None, modelName=None, postXlim=None):
+  postFun = interpolate.interp1d(*plotCumPost(pfn, plot=False, zipRez=False, xlim=postXlim))
   ps = []
   ns = []
   np.append(aggFreq, float("inf"))
@@ -763,6 +829,8 @@ def calcKSSumms(pfn, fns, aggFreq, burnIn = 0, xlim = 200000, names=None):
     for r in range(len(runs)):
       print fn, r
       xs, ys = calcKSRun(postFun, runs[r], aggFreq, burnIn)
+      if len(xs) == 0:
+        continue
       if xs[0] > start:
         start = xs[0]
       if xs[-1] < end:
@@ -798,10 +866,12 @@ def calcKSSumms(pfn, fns, aggFreq, burnIn = 0, xlim = 200000, names=None):
   plt.xlim([0, xlim])
   plt.xlabel("Trace likelihood calculations", size=20)
   plt.ylabel("KS difference from posterior", size=20)
-  no = fns[0].split("PerLL")[0][-1]
-  if no == "4":
-    no = "3"
-  plt.title("Performance on NormalMean" + no + " Model", size=30)
+  if not modelName:
+    no = fns[0].split("PerLL")[0][-1]
+    if no == "4":
+      no = "3"
+    modelName = "NormalMean" + no
+  plt.title("Performance on " + modelName + " Model", size=30)
 
   plt.show()
 
@@ -925,6 +995,8 @@ def calcKLSumm(post, sampsList, col = 'b', show=True, burnIn = 0, xlim = float("
     if len(fs) % 10 == 0:
       print "fs", len(fs)
     xs,ys = calcKLTest(post, samps, plot=False, burnIn = burnIn, xlim = xlim) #xs should be already sorted
+    if len(xs) == 0:
+      continue
     if xs[0] > start:
       start = xs[0]
     if xs[-1] < end:
