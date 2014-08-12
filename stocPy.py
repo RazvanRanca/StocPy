@@ -51,7 +51,7 @@ def beta(a, b, cond = None, obs=False, name = None):
   return getERP(name, cond, erps["beta"], (a, b))
 
 def stocPrim(distName, params, cond=None, obs=False, name=None, part=None):
-  if part:
+  if part != None:
     global partName
     global partFunc
     depth = part
@@ -61,12 +61,16 @@ def stocPrim(distName, params, cond=None, obs=False, name=None, part=None):
       pName = name + "-" + str(i)
       ns.append(normal(0, math.sqrt(1.0/(2.0**i)), obs=obs, name = pName))
       partName[pName] = name
-    pName = name + "-" + str(i) + "-r"
+    pName = name + "-" + str(depth) + "-r"
     ns.append(normal(0, math.sqrt(1.0/(2.0**depth)), obs=obs, name = pName))
     partName[pName] = name
     dist = getattr(ss, distName)
-    partFunc[name] = lambda xs: dist.ppf(ss.norm.cdf(sum(xs)), *params)
-    return dist.ppf(ss.norm.cdf(sum(ns)), *params)
+    if isinstance(dist, ss.rv_discrete):
+      func = lambda xs: int(dist.ppf(ss.norm.cdf(sum(xs)), *params))
+    else:
+      func = lambda xs: dist.ppf(ss.norm.cdf(sum(xs)), *params)
+    partFunc[name] = func 
+    return func(ns)
   else:
     if distName not in erps:
       erps[distName] = len(erps)
@@ -855,8 +859,8 @@ def calcKSSumms(pfn, fns, aggFreq, burnIn = 0, xlim = 200000, names=None, modelN
       bot.append(np.percentile(vals, 75))
 
     plt.plot(range(start, end), med, cols[i], linewidth=2, alpha=0.9)
-    plt.plot(range(start, end), top, cols[i], linewidth=2, alpha=0.9)
-    plt.plot(range(start, end), bot, cols[i], linewidth=2, alpha=0.9)
+    plt.plot(range(start, end), top, cols[i] + "--", linewidth=2, alpha=0.9)
+    plt.plot(range(start, end), bot, cols[i] + "--", linewidth=2, alpha=0.9)
 
   if not names:
     names = ns
