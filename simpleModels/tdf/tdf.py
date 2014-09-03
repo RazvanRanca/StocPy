@@ -40,7 +40,7 @@ def displayExperiments():
 if __name__ == "__main__":
   conds = getConds(stocPy.getCurDir(__file__) + "/tdfData") # load the data we condition on
 
-  samps = stocPy.getTimedSamples(tdf, 10, alg="slice") # generate samples for 10 seconds with the slice inference engine
+  samps = stocPy.getTimedSamples(tdf, 10, alg="sliceTD") # generate samples for 10 seconds with the slice inference engine
   stocPy.plotSamples(samps, filt=lambda x: x<8, xlabel = "Degrees of freedom") # plot samples smaller than 8
   #stocPy.saveRun(samps, expDir+"test") # save sample run
 
