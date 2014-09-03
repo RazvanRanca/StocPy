@@ -31,6 +31,10 @@ nosetests.xml
 # Translations
 *.mo
 
+# Vim Backups
+*.swp
+*.swo
+
 # Mr Developer
 .mr.developer.cfg
 .project
