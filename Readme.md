@@ -14,7 +14,8 @@ Features
 
 * Intuitive, succinct and flexible model specification , thanks to Python
 * Can use any probabilistic primitive defined by [scipy.stats](http://docs.scipy.org/doc/scipy/reference/stats.html#continuous-distributions)
-* Allows for fast prototyping of different inference methods. Currently Metropolis, Slice Sampling and weighted combinations of the two are supported (note, non-combined slice sampling is still work in progress and may not work correctly on all models)
+* Supports multiple inference methods, currently Metropolis, Slice Sampling and weighted combinations of the two. Inference engine designed to be easily extensible
+* Automatic program re-writing for improved inference possible. Feature used by the user specifying a partition (or a partition distribution) on the priors.
 
 Basic Usage
 ---
@@ -29,6 +30,7 @@ Here, we define a prior on the mean as a Normal(0,1) and also say that we wish t
 Once this model is defined we can perform inference on it by calling:
 
     samples = stocPy.getSamples(guessMean, 10000, alg="met")
+
 Where we are asking for 10,000 samples, generated with the Metropolis inference technique (which is also the default). This will return 10,000 samples for each of the variables we asked to be observed (in the above model, this would be just the mean).
 
 Finally, several utility functions are provided. For instance, to quickly visualise the distribution of our samples, we could call:
@@ -39,15 +41,15 @@ Finally, several utility functions are provided. For instance, to quickly visual
 There are 3 methods available for performing inference. These are:
 
 * `stocPy.getSamples(model, noSamps)` - Generate a certain number of samples
-* `stocPy.getTimesSamples(model, noSecs)` - Generate samples until a certain number of seconds have ellapsed 
+* `stocPy.getTimedSamples(model, noSecs)` - Generate samples until a certain number of seconds have ellapsed 
 * `stocPy.getSamplesByLL(model, noLLs)` - Generate samples until a certain number of model simulations have been run. This is useful when benchmarking different inference techniques which may simulate the model multiple times to generate a single sample. 
 
 All 3 of these functions take, via the optional `alg` keyword, the method by which to perform inference. The available methods are:
 
 * `alg="met"` - Metropolis from the prior. The default option.
-* `alg="slice"` - Slice sampling based inference (currently doesn't work correctly on trans-dimensional models).
-* `alg="sliceNoTrans"` - Slice which explicitly disallows trans-dimensional jumps.
+* `alg="sliceTD"` - Slice sampling based inference.
 * `alg="sliceMet"` - A mixture of slice and Metropolis. The mixture weight can be specified by the `thresh` parameter. By default this is 0.1, corresponding to a Metropolis:Slice 1:9 mixture.
+* `alg="sliceNoTrans"` - Slice which explicitly disallows trans-dimensional jumps. Might be useful for looking at the properties of different modes of a distribution.
 
 ### Less Basic Usage
 For more usage examples (including more advanced cases), please see the models directory. Each model is explained in its respective ".py" file.
@@ -64,11 +66,13 @@ At the moment StocPy defines the following stochastic primitives:
 * Student T - `stocPy.studentT(dof)`
 * Inverse Gamma - `stocPy.invGamma(shape, scale)`
 * Beta - `stocPy.beta(a, b)`
+* Categorical - `stocPy.categorical(probs)`
+* Chinese Restaurant Process - `stocPy.crp(a, maxClasses=None)`, where the 2nd argument is optional
 
 ### Using any scipy.stats primitive
 A generic `stocPrim` function is also provided through which any stochastic primitive implemented in [scipy.stats](http://docs.scipy.org/doc/scipy/reference/stats.html#continuous-distributions) can be used in StocPy models.
 
-The usage of the stocPrim is demonstrated in the "simplePoisson" model, but in short it is:
+The usage of the stocPrim is demonstrated in the "simpleModels/poisson.py" model, but in short it is:
 
     stocPy.stocPrim(distributionName, distributionParameters)
 
@@ -81,7 +85,7 @@ It might be convenient to add more commonly used primitives directly to StocPy r
 
 * Add the desired distribution to the `dists` array
 * Add a (key:value) pair consisting of (distribution name : distribution index in `dists` array) to the `erps` dictionary
-* Create a 3 line wrapper function which gets the distribution parameters from the user, calls `initERP` and then returns `getERP`. See the wrappers provided in stocPy (normal, poisson, etc.) to understand the pattern this wrapper follows.
+* Create a 3 line wrapper function which gets the distribution parameters from the user, calls `initERP` and then returns `getERP`. See the wrappers provided in stocPy (normal, poisson, etc.) to understand the pattern this wrapper follows (**note:** the `name` attribute has to come last in the wrapper function's parameter list and must not be passed via *args or **kwargs, otherwise the automatic naming breaks down).
 
 Installation
 ---
