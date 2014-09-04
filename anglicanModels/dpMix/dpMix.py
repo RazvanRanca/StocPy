@@ -29,7 +29,6 @@ obs = [1.0, 1.1, 1.2, -10.0, -15.0, -20.0, 0.01, 0.1, 0.05, 0.0]
 post = {1: 0.04571063618028917, 2: 0.21363892248912586, 3: 0.32803178751362133, 4: 0.2536086916674492, 5: 0.1168560934038502, 6: 0.034586518747180765, 7: 0.006687390777635802, 8: 0.0008201140565686028, 9: 5.803774292549257e-05, 10: 1.8074213536324885e-06}
 
 pind = None
-obsLens = []
 def dpmLazy():
   crp = stocPy.crp(1.72)
   sds = {}
@@ -40,7 +39,7 @@ def dpmLazy():
       sds[c] = math.sqrt(10 * stocPy.stocPrim("invgamma", (1, 0, 10), part=pind))
       ms[c] = stocPy.stocPrim("normal", (0, sds[c]), part=pind)
     stocPy.normal(ms[c], sds[c], obs[i])
-  obsLens.append(len(ms))
+  stocPy.observe(len(ms), name="c")
 
 def dpmEager():
   crp = stocPy.crp(1.72, 10)
@@ -55,7 +54,7 @@ def dpmEager():
 
   for i in range(len(obs)):
     stocPy.normal(ms[cs[i]], sds[cs[i]], obs[i])
-  obsLens.append(len(ms))
+  stocPy.observe(len(ms), name="c")
 
 """
 Generate all set partitions of a given list.
@@ -153,14 +152,12 @@ def getPost(ds, a, fn=None):
 Generate specified number and type of runs for the given model.
 """
 def genRuns(model, noRuns, time, fn, alg="met"):
-  global obsLens
   runs = []
   for i in range(noRuns):
     print str(model), "Run", i
-    samples, traceAcc = stocPy.getTimedSamples(model, time, alg=alg, outTraceAcc=True)
-    runs.append(stocPy.procUserSamples(obsLens, traceAcc))
-    obsLens = []
-  print map(lambda run: (min(run.values()), max(run.values())), runs)
+    samples = stocPy.getTimedSamples(model, time, alg=alg)
+    runs.append(samples["c"])
+  #print map(lambda run: (min(run.values()), max(run.values())), runs)
   with open(fn, 'w') as f:
     cPickle.dump(runs, f)
 
@@ -168,15 +165,15 @@ if __name__ == "__main__":
   #storeLLs(obs, "dpMixLLS")
   #print getPost(obs, 1.72, "dpMixLLS")
   noRuns = 10
-  runTime = 180
+  runTime = 60
   term = "_" + str(noRuns) + "_" + str(runTime)
 
   cd = stocPy.getCurDir(__file__) + "experiments/"
 
   pind = None
-  #genRuns(dpmEager, noRuns, runTime, cd + "Eager_Met" + term, alg="met")
+  genRuns(dpmEager, noRuns, runTime, cd + "Eager_Met" + term, alg="met")
   pind = 2
-  #genRuns(dpmEager, noRuns, runTime, cd + "Eager_Met_P2v" + term, alg="met")
+  genRuns(dpmEager, noRuns, runTime, cd + "Eager_Met_P2v" + term, alg="met")
   pind = 5
-  #genRuns(dpmEager, noRuns, runTime, cd + "Eager_Met_P5v" + term, alg="met")
+  genRuns(dpmEager, noRuns, runTime, cd + "Eager_Met_P5v" + term, alg="met")
   stocPy.calcKLSumms(post , [cd + "Eager_Met" + term, cd + "Eager_Met_P2v" + term, cd + "Eager_Met_P5v" + term], names = ["Eager", "Eager_Part2", "Eager_Part5"], burnIn=0, modelName="DP Mixture")

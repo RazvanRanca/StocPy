@@ -120,6 +120,7 @@ traceAcc = []
 metAccProbs = {} 
 recAccNames = set()
 autoDepth = 1
+observed = {}
 
 def unifCont(start, end, cond = None, obs=False, name = None): #different name than ss.uniform because parametrixation si diff: [start, end]
   initERP(name, obs)
@@ -298,6 +299,7 @@ def resetAll():
   global metAccProbs
   global recAccNames
   global autoDepth
+  global observed
 
   startTime = time.time()
   curNames = set()
@@ -316,6 +318,7 @@ def resetAll():
   metAccProbs = {} 
   recAccNames = set()
   autoDepth = 1
+  observed = {}
 
 """
 Insert 3 stacks as globals, for functions, loopCount and lineNo-colNo pairs.
@@ -537,6 +540,14 @@ def initModel(model):
     resetAll()
     model()
 
+def observe(val, name):
+  global observed
+  try:
+    observed[name].append(val)
+  except:
+    observed[name] = [val]
+
+
 def getSamples(model, noSamps, alg="met", thresh=0.1, autoNames = True, orderNames = False, outTraceAcc = False):
   if autoNames:
     model = procRawModel(model)
@@ -613,18 +624,28 @@ def getTimedSamples(model, maxTime, alg = "met", thresh = 0.1, autoNames=True, o
 
   initModel(model)
   sampleDict = {}
+  index = 0
   while time.time() - startTime < maxTime:
-    index = len(sampleDict)+1
     if alg == "met":
-      sampleDict[index] = metropolisSampleTrace(model, no = index)
+      samples = metropolisSampleTrace(model, no = index)
+      index += 1
+      sampleDict[index] = samples
     elif alg == "sliceOld":
-      sampleDict[index] = sliceSampleTrace(model, no = index)
+      llCount, samples = sliceSampleTrace(model, no = index, countLLs = True)
+      index += llCount
+      sampleDict[index] = samples
     elif alg == "sliceTD":
-      sampleDict[index] = sliceSampleTrace(model, no = index, tdCorr=True)
+      llCount, samples = sliceSampleTrace(model, no = index, tdCorr=True, countLLs = True)
+      index += llCount
+      sampleDict[index] = samples
     elif alg == "sliceNoTrans":
-      sampleDict[index] = sliceSampleTrace(model, no = index, allowTransJumps = False)
+      llCount, samples = sliceSampleTrace(model, no = index, allowTransJumps = False, countLLs = True)
+      index += llCount
+      sampleDict[index] = samples
     elif alg == "sliceMet":
-      sampleDict[index] = sliceMetMixSampleTrace(model, no = index)
+      llCount, samples = sliceMetMixSampleTrace(model, no = index, countLLs = true)
+      index += llCount
+      sampleDict[index] = samples
     else:
       raise Exception("Unknown inference algorithm: " + str(alg))
 
@@ -636,22 +657,22 @@ def aggSamples(samples, orderNames = False, outTraceAcc = False):
   for count,vs in samples.items():
     for k,v in vs.items():
       if k in partName:
-	k = partName[k]
+	    k = partName[k]
       try:
-	aggSamps[k][count].append(v)
+	    aggSamps[k][count] += v
       except:
-	try:
-	  aggSamps[k][count] = [v]
-	except:
-	  aggSamps[k] = {count:[v]}
+	    try:
+	      aggSamps[k][count] = v
+	    except:
+	      aggSamps[k] = {count:v}
   for k,vs in aggSamps.items():
     for count,v in vs.items():
       if k in partFunc:
-	val = partFunc[k](v)
+        val = partFunc[k](v)
         aggSamps[k][count] = val 
       else:
-	assert(len(v)==1)
-	aggSamps[k][count] = v[0]
+	    assert(len(v)==1)
+	    aggSamps[k][count] = v[0]
 
   if orderNames:
     sampList = [None for i in range(len(nameOrder))]
@@ -683,6 +704,7 @@ def metropolisSampleTrace(model, no = None):
   global observ
   global traceAcc
   global metAccProbs
+  global observed
 
   unCond = list(set(db.keys()).difference(condition))
   n = random.choice(unCond)
@@ -696,7 +718,8 @@ def metropolisSampleTrace(model, no = None):
 
   odb = copy.copy(db)
   oll = ll
-  oobs = copy.copy(observ)
+  oobs = copy.copy(observ) # variables we need to observe
+  oobsvd = copy.copy(observed) # explicit "observe" expressions
   recalcLL(model, n, x, l)
   #if llStale != 0:
   #  print "lls", ll, llFresh, llStale
@@ -731,10 +754,13 @@ def metropolisSampleTrace(model, no = None):
     db = odb
     ll = oll
     observ = oobs
+    observed = oobsvd
 
   sample = {}
   for n in observ:
-    sample[n] = db[n][1]
+    sample[n] = [db[n][1]]
+  for n in observed:
+    sample[n] = observed[n]
   #print changed, n, x, sample[n]
   #if x == 0 and changed:
   #  print changed, sample
@@ -837,7 +863,9 @@ def sliceSampleTrace(model, width = 10, no = None, allowTransJumps = True, count
   traceAcc += [0]*(llCount-1) + [1]
   sample = {}
   for o in observ:
-    sample[o] = db[o][1]
+    sample[o] = [db[o][1]]
+  for n in observed:
+    sample[n] = observed[n]
 
   if no%10000 == 0:
     print no, n, xl, xr, sample
@@ -924,7 +952,9 @@ def sliceMultSampleTrace(model, width = 100, no = None):
 
   sample = {}
   for n in observ:
-    sample[n] = db[n][1]
+    sample[n] = [db[n][1]]
+  for n in observed:
+    sample[n] = observed[n]
 
   if no%1000 == 0:
     print no, sample[n]
@@ -944,6 +974,7 @@ def recalcMultLL(model, xs, ls = None):
   global llFresh
   global curNames
   global observ
+  global observed
 
   for n,x in xs.items():
     otp, ox, ol, ops = db[n]
@@ -968,6 +999,7 @@ def recalcMultLL(model, xs, ls = None):
   curNames = set()
   oldLen = len(db)
   observ = set()
+  observed = {}
   model()
 
   newLen = len(db)
@@ -1332,7 +1364,7 @@ def calcKLCondTests(posts, sampList, test, freq = float("inf")):
   plt.legend(axs, names)
   plt.show()
 
-def calcKLTests(post, sampsLists, names, freq = float("inf"), burnIn = 0, xlim=float("inf"), aggSums=False, xlabel="Trace likelihood calculations", title="Performance on Branching model"):
+def calcKLTests(post, sampsLists, names, freq = float("inf"), burnIn = 0, xlim=float("inf"), aggSums=False, xlabel="Trace likelihood calculations", title=None, modelName = None):
   post = potRead(post)
   axs = []
   for i in range(len(sampsLists)):  
@@ -1344,6 +1376,13 @@ def calcKLTests(post, sampsLists, names, freq = float("inf"), burnIn = 0, xlim=f
 
   plt.ylabel("KL divergence from posterior", size=20)
   plt.xlabel(xlabel, size=20)
+  if not title:
+    if not modelName:
+      no = fns[0].split("PerLL")[0][-1]
+      if no == "4":
+        no = "3"
+      modelName = "NormalMean" + no
+    title = "Performance on " + modelName + " Model"
   plt.title(title, size=30)
   plt.legend(axs, names, loc=3)
   plt.show()
@@ -1575,7 +1614,7 @@ def extractDict(dic, name = None):
     name = dic.keys()[0]
   return dic[name]
 
-def procUserSamples(samples, accs):
+def procUserSamples(samples, accs, byLL = True):
   #print len(samples), len(accs)
   corrSamples = {}
   prevSamp = samples[-len(accs)-1]
@@ -1587,7 +1626,10 @@ def procUserSamples(samples, accs):
     elif accs[i] == 0:
       continue
     elif accs[i] == 1:
-      corrSamples[i+1] = samples[i]
+      if byLL:
+        corrSamples[i+1] = samples[i]
+      else:
+        corrSamples[len(corrSamples)+1] = samples[i]
       prevSamp = samples[i]
     else:
       raise Exception("Unknown traceAcc value: " + str(accs[i]))

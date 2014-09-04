@@ -51,9 +51,8 @@ def displayExperiments(xlim=20000):
     with open(stocPy.getCurDir(__file__) + "/experiments/" + path,'r') as f:
       runs.append(cPickle.load(f))
 
-  stocPy.calcKLTests(stocPy.getCurDir(__file__) + "/posterior", runs, titles, xlim=xlim, burnIn = 1000) # show all runs
-  stocPy.calcKLSumms(stocPy.getCurDir(__file__) + "/posterior", runs, titles, xlim=xlim, burnIn = 1000) # show run quartiles
+  stocPy.calcKLTests(stocPy.getCurDir(__file__) + "/posterior", runs, titles, xlim=xlim, burnIn = 1000, modelName = "Branching") # show all runs
+  stocPy.calcKLSumms(stocPy.getCurDir(__file__) + "/posterior", runs, titles, xlim=xlim, burnIn = 1000, modelName = "Branching") # show run quartiles
 
 if __name__ == "__main__":
-  stocPy.plotSamples(stocPy.getSamplesByLL(branching, 10000, discAll=True, alg="met"), xlabel = "r") # extract samples untill 10,000 trace log-likelihood calculations are performed
-  #displayExperiments()
+  stocPy.plotSamples(stocPy.getSamplesByLL(branching, 1000, alg="met"), xlabel = "r") # extract samples untill 10,000 trace log-likelihood calculations are performed
