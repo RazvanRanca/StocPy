@@ -29,13 +29,11 @@ def marsaglia(mean, var):
   else:
     return marsaglia(mean, var)
  
-obsMean = []
 def marsagliaMean():
-  global sampleInd
   mean = marsaglia(1, 5)
   stocPy.normal(mean, math.sqrt(2), cond=9)
   stocPy.normal(mean, math.sqrt(2), cond=8)
-  obsMean.append(mean)
+  stocPy.observe(mean, name="m")
 
 """
 Calculate the analytical posterior for this model. 
@@ -69,14 +67,12 @@ Generate the specified number and type of runs for the model and
 save them to a file.
 """
 def genRuns(model, noRuns, time, fn, alg="met", autoNames=True):
-  global obsMean
   runs = []
   for i in range(noRuns):
     print str(model), "Run", i
-    samples, traceAcc = stocPy.getTimedSamples(model, time, alg=alg, autoNames=autoNames, outTraceAcc=True)
-    runs.append(stocPy.procUserSamples(obsMean, traceAcc))
-    obsMean = []
-  print map(lambda run: (min(run.values()), max(run.values())), runs)
+    samples = stocPy.getTimedSamples(model, time, alg=alg, autoNames=autoNames)
+    runs.append(samples["m"])
+  #print map(lambda run: (min(run.values()), max(run.values())), runs)
   with open(fn, 'w') as f:
     cPickle.dump(runs, f)
 
@@ -84,12 +80,12 @@ if __name__ == "__main__":
   global pind 
   pind = None 
   cd = stocPy.getCurDir(__file__) + "experiments/"
-  noRuns = 5
-  time = 6
+  noRuns = 25
+  time = 60
   term = "_" + str(noRuns) + "_" + str(time)
   genRuns(marsagliaMean, noRuns=noRuns, time=time, fn=cd + "MetRuns" + term, alg="met")
-  #genRuns(marsagliaMean, noRuns=noRuns, time=time, fn=cd + "SliceRuns" + term, alg="sliceTD")
+  genRuns(marsagliaMean, noRuns=noRuns, time=time, fn=cd + "SliceRuns" + term, alg="sliceTD")
   pind = 5
-  #genRuns(marsagliaMean, noRuns=noRuns, time=time, fn=cd + "Part" + str(pind) + "Runs" + term, alg="met")
-  #genRuns(marsagliaMean, noRuns=noRuns, time=time, fn=cd + "SlicePart" + str(pind) + "Runs" + term, alg="sliceTD")
+  genRuns(marsagliaMean, noRuns=noRuns, time=time, fn=cd + "Part" + str(pind) + "Runs" + term, alg="met")
+  genRuns(marsagliaMean, noRuns=noRuns, time=time, fn=cd + "SlicePart" + str(pind) + "Runs" + term, alg="sliceTD")
   stocPy.calcKSSumms(cd + "../marsagliaPost" , [cd + "MetRuns" + term, cd + "SliceRuns" + term, cd + "Part" + str(pind) + "Runs" + term, cd + "SlicePart" + str(pind) + "Runs" + term], names = ["Met", "Slice", "Part" + str(pind), "SlicePart" + str(pind)], burnIn=0, aggFreq=np.logspace(1,math.log(1000000,10),10), modelName="Marsaglia")
